@@ -204,6 +204,62 @@
     padding:9px 11px; line-height:1.5; margin-bottom:16px;
   }
 
+  /* ---------- DPI warning hint ---------- */
+  .dpi-warn{
+    position:relative;
+    display:inline-flex; align-items:center; justify-content:center;
+    margin-left:5px;
+    color: var(--amber);
+    cursor:help;
+    vertical-align:middle;
+  }
+  .dpi-warn-icon{
+    display:block;
+    animation: dpi-warn-pulse 1.3s ease-in-out infinite;
+    filter: drop-shadow(0 0 3px rgba(232,183,94,0.8));
+  }
+  @keyframes dpi-warn-pulse{
+    0%, 100%{ transform: scale(1) rotate(0deg); opacity:1; }
+    50%{ transform: scale(1.3) rotate(-4deg); opacity:0.7; }
+  }
+  .dpi-warn-tip{
+    position:absolute;
+    bottom: calc(100% + 9px);
+    left:-10px;
+    transform: translateY(4px);
+    width:210px;
+    background: var(--bg-field);
+    border:1px solid var(--amber);
+    color: var(--text);
+    font-family:'Inter', sans-serif;
+    font-size:11px;
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:normal;
+    line-height:1.45;
+    padding:9px 11px;
+    border-radius: var(--radius);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+    opacity:0;
+    visibility:hidden;
+    transition: opacity .15s ease, transform .15s ease;
+    pointer-events:none;
+    z-index:20;
+  }
+  .dpi-warn-tip::after{
+    content:'';
+    position:absolute;
+    top:100%; left:14px;
+    border:5px solid transparent;
+    border-top-color: var(--amber);
+  }
+  .dpi-warn:hover .dpi-warn-tip,
+  .dpi-warn:focus .dpi-warn-tip,
+  .dpi-warn:focus-visible .dpi-warn-tip{
+    opacity:1; visibility:visible;
+    transform: translateY(0);
+  }
+
   .btn{
     width:100%; padding:13px 16px; border-radius:var(--radius); border:1px solid var(--cyan);
     background: var(--cyan); color:#0B1E30; font-family:'JetBrains Mono',monospace;
@@ -334,7 +390,16 @@
 
         <div class="field-row">
           <div class="field">
-            <label>DPI</label>
+            <label>DPI
+              <span class="dpi-warn" tabindex="0">
+                <svg class="dpi-warn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+                  <path d="M12 2 L22.5 21 H1.5 Z"/>
+                  <line x1="12" y1="9" x2="12" y2="14.5"/>
+                  <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none"/>
+                </svg>
+                <span class="dpi-warn-tip">Set DPI first — changing it after adjusting other settings can disturb the values you've already set.</span>
+              </span>
+            </label>
             <input type="number" id="dpiInput" value="300" min="50">
           </div>
           <div class="field"></div>
