@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PHOTO SPEC — Exam Photo Formatter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F2338;
+    --bg-panel: #15304A;
+    --bg-field: #0F2338;
+    --line: #2E5478;
+    --line-soft: rgba(139,178,214,0.16);
+    --text: #E7EEF5;
+    --text-dim: #8FA8C2;
+    --cyan: #6BE0D6;
+    --green: #7FD8A8;
+    --red: #FF6B5B;
+    --amber: #E8B75E;
+    --radius: 3px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0 / 28px 28px,
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 28px 20px 60px;
+  }
+  .wrap{ max-width: 1180px; margin: 0 auto; }
+
+  /* ---------- title block ---------- */
+  .titleblock{
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--bg-panel);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: stretch;
+    margin-bottom: 22px;
+    overflow: hidden;
+  }
+  .titleblock-main{ padding: 18px 22px; }
+  .titleblock-main h1{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;
+    font-size: 22px;
+    letter-spacing: 0.06em;
+    margin: 0 0 4px;
+    color: var(--text);
+  }
+  .titleblock-main p{
+    margin:0; font-size: 13px; color: var(--text-dim); max-width: 520px; line-height:1.5;
+  }
+  .titleblock-fields{
+    display:grid; grid-template-columns: repeat(4, minmax(84px,1fr));
+    border-left: 1px solid var(--line);
+  }
+  .tb-field{
+    padding: 10px 14px;
+    border-left: 1px solid var(--line);
+    display:flex; flex-direction:column; justify-content:center; gap:3px;
+  }
+  .tb-field:first-child{ border-left:none; }
+  .tb-field .k{ font-size:9px; letter-spacing:0.12em; color:var(--text-dim); text-transform:uppercase; font-family:'JetBrains Mono',monospace;}
+  .tb-field .v{ font-size:14px; font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--cyan); }
+
+  /* ---------- layout ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 20px;
+    align-items:start;
+  }
+  @media (max-width: 880px){
+    .grid{ grid-template-columns: 1fr; }
+    .titleblock{ grid-template-columns: 1fr; }
+    .titleblock-fields{ border-left:none; border-top:1px solid var(--line); grid-template-columns: repeat(4,1fr); }
+  }
+
+  .panel{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px;
+  }
+  .panel + .panel{ margin-top: 20px; }
+  .panel h2{
+    font-family:'JetBrains Mono',monospace;
+    font-size: 11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel h2::after{
+    content:''; flex:1; height:1px; background: var(--line);
+  }
+
+  /* ---------- dropzone ---------- */
+  .dropzone{
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 50px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag{ border-color: var(--cyan); background: rgba(107,224,214,0.05); }
+  .dropzone svg{ margin-bottom:12px; opacity:0.7; }
+  .dropzone .t1{ font-size:14px; font-weight:600; margin-bottom:4px; }
+  .dropzone .t2{ font-size:12px; color:var(--text-dim); }
+
+  /* ---------- blueprint frame (crop preview) ---------- */
+  .frame-outer{
+    position:relative;
+    display:flex; align-items:center; justify-content:center;
+    padding: 34px 34px 46px;
+  }
+  .frame-box{
+    position:relative;
+    overflow:hidden;
+    border: 1px solid var(--cyan);
+    background:#081522;
+    touch-action:none;
+    cursor: grab;
+  }
+  .frame-box:active{ cursor:grabbing; }
+  .frame-box canvas{ display:block; width:100%; height:100%; }
+
+  /* corner registration marks */
+  .reg{ position:absolute; width:16px; height:16px; pointer-events:none; }
+  .reg::before,.reg::after{ content:''; position:absolute; background:var(--cyan); }
+  .reg::before{ width:16px; height:1px; top:7px; left:0; }
+  .reg::after{ width:1px; height:16px; left:7px; top:0; }
+  .reg.tl{ top:-8px; left:-8px; } .reg.tr{ top:-8px; right:-8px; }
+  .reg.bl{ bottom:-8px; left:-8px; } .reg.br{ bottom:-8px; right:-8px; }
+
+  /* dimension lines */
+  .dim{ position:absolute; font-family:'JetBrains Mono',monospace; font-size:10px; color: var(--cyan); letter-spacing:0.02em; white-space:nowrap;}
+  .dim-top{ top:-26px; left:0; right:0; text-align:center; }
+  .dim-top .bar{ position:absolute; top:16px; left:0; right:0; height:1px; background:var(--line); }
+  .dim-top .bar::before,.dim-top .bar::after{ content:''; position:absolute; top:-3px; width:1px; height:7px; background:var(--line); }
+  .dim-top .bar::before{ left:0; } .dim-top .bar::after{ right:0; }
+  .dim-left{ top:0; bottom:0; left:-8px; writing-mode: vertical-rl; transform: rotate(180deg); display:flex; align-items:center; justify-content:center; }
+
+  .stamp{
+    position:absolute; bottom:8px; right:8px;
+    border:2px solid var(--green); color:var(--green);
+    border-radius: 4px; padding: 4px 10px;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:11px;
+    letter-spacing:0.08em;
+    transform: rotate(-6deg);
+    background: rgba(15,35,56,0.75);
+    opacity:0; transition: opacity .2s;
+    pointer-events:none;
+  }
+  .stamp.show{ opacity:1; }
+  .stamp.bad{ border-color:var(--red); color:var(--red); }
+
+  .zoom-row{ display:flex; align-items:center; gap:10px; margin-top:14px; }
+  .zoom-row label{ font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+  input[type=range]{ flex:1; accent-color: var(--cyan); }
+  .hint{ font-size:11px; color:var(--text-dim); margin-top:8px; text-align:center; }
+
+  /* ---------- form controls ---------- */
+  .field-row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px; }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+  .field input, .field select{
+    background: var(--bg-field);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family:'JetBrains Mono',monospace;
+    font-size: 14px;
+    padding: 9px 10px;
+    outline:none;
+    width:100%;
+  }
+  .field input:focus, .field select:focus{ border-color: var(--cyan); }
+  .unit{ font-size:11px; color:var(--text-dim); margin-left:2px; font-family:'JetBrains Mono',monospace;}
+
+  .lock-row{ display:flex; align-items:center; gap:8px; margin: 2px 0 16px; font-size:12px; color:var(--text-dim); }
+  .lock-row input{ accent-color: var(--cyan); }
+
+  select{ appearance:none; -webkit-appearance:none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%238FA8C2'/></svg>"); background-repeat:no-repeat; background-position: right 10px center; padding-right: 26px; }
+
+  .preset-note{
+    font-size:11px; color:var(--text-dim); line-height:1.5; margin: -4px 0 12px;
+    padding-left:10px; border-left:2px solid var(--line);
+  }
+  .preset-note a{ color:var(--cyan); }
+  .disclaimer{
+    font-size:11px; color:var(--amber); background: rgba(232,183,94,0.08);
+    border:1px solid rgba(232,183,94,0.35); border-radius:var(--radius);
+    padding:9px 11px; line-height:1.5; margin-bottom:16px;
+  }
+
+  .btn{
+    width:100%; padding:13px 16px; border-radius:var(--radius); border:1px solid var(--cyan);
+    background: var(--cyan); color:#0B1E30; font-family:'JetBrains Mono',monospace;
+    font-weight:700; font-size:13px; letter-spacing:0.06em; text-transform:uppercase;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:hover{ opacity:0.9; }
+  .btn:active{ transform: scale(0.99); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn.secondary{ background:transparent; color:var(--cyan); }
+
+  /* ---------- compliance checklist ---------- */
+  .check-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 0; border-top: 1px solid var(--line-soft);
+    font-size: 12.5px;
+  }
+  .check-row:first-of-type{ border-top:none; }
+  .check-row .lbl{ color: var(--text-dim); }
+  .check-row .val{ font-family:'JetBrains Mono',monospace; display:flex; align-items:center; gap:6px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background: var(--line); flex:none; }
+  .dot.ok{ background: var(--green); box-shadow:0 0 6px var(--green); }
+  .dot.bad{ background: var(--red); box-shadow:0 0 6px var(--red); }
+
+  .footnote{
+    text-align:center; font-size:11px; color:var(--text-dim); margin-top:26px; line-height:1.6;
+  }
+  .footnote strong{ color: var(--text); }
+
+  a.dl-link{ color:var(--cyan); text-decoration:none; border-bottom:1px dotted var(--cyan); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div class="titleblock-main">
+      <h1>PHOTO SPEC</h1>
+      <p>Format a photo or signature to an exact pixel size, DPI, physical size and file-size range — everything happens in your browser, nothing is uploaded anywhere.</p>
+    </div>
+    <div class="titleblock-fields">
+      <div class="tb-field"><span class="k">Size</span><span class="v" id="tbSize">—</span></div>
+      <div class="tb-field"><span class="k">DPI</span><span class="v" id="tbDpi">—</span></div>
+      <div class="tb-field"><span class="k">Physical</span><span class="v" id="tbCm">—</span></div>
+      <div class="tb-field"><span class="k">Target KB</span><span class="v" id="tbKb">—</span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: preview -->
+    <div>
+      <div class="panel" id="uploadPanel">
+        <h2>01 · Source Image</h2>
+        <div class="dropzone" id="dropzone">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#6BE0D6" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <div class="t1">Drop a photo here, or click to browse</div>
+          <div class="t2">JPG or PNG · processed locally, never uploaded</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none">
+      </div>
+
+      <div class="panel" id="previewPanel" style="display:none;">
+        <h2>02 · Frame &amp; Crop</h2>
+        <div class="frame-outer">
+          <div class="dim dim-top"><span id="dimTopLabel"></span><div class="bar"></div></div>
+          <div class="dim dim-left"><span id="dimLeftLabel"></span></div>
+          <div class="frame-box" id="frameBox">
+            <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+            <canvas id="previewCanvas"></canvas>
+            <div class="stamp" id="stamp">PENDING</div>
+          </div>
+        </div>
+        <div class="zoom-row">
+          <label>ZOOM</label>
+          <input type="range" id="zoomSlider" min="100" max="300" value="100">
+        </div>
+        <div class="hint">Drag the photo inside the frame to reposition it</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div>
+      <div class="panel">
+        <h2>03 · Target Spec</h2>
+
+        <div class="field" style="margin-bottom:10px;">
+          <label>Starting point</label>
+          <select id="presetSelect">
+            <option value="custom">Custom</option>
+            <optgroup label="IBPS / Bank PO, Clerk, SO, RRB — ibps.in">
+              <option value="ibps_photo">Photo — 200×230px, 20–50KB</option>
+              <option value="ibps_sign">Signature — 140×60px, 10–20KB</option>
+              <option value="ibps_thumb">Left thumb impression — 240×240px, 20–50KB</option>
+              <option value="ibps_decl">Handwritten declaration — 800×400px, 50–100KB</option>
+            </optgroup>
+            <optgroup label="SSC — CGL / CHSL / MTS / GD etc. — ssc.nic.in">
+              <option value="ssc_photo" selected>Photo — 3.5×4.5cm, 20–50KB</option>
+              <option value="ssc_sign">Signature — ~4×2cm, 10–20KB</option>
+            </optgroup>
+            <optgroup label="UPSC — CSE / NDA / CDS etc. — upsconline.nic.in">
+              <option value="upsc_photo">Photo — 20–200KB</option>
+              <option value="upsc_sign">Triple signature — 350–500px, 20–100KB</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="preset-note" id="presetNote"></div>
+
+        <div class="disclaimer">
+          ⚠ The presets above are read directly from each body's official notification PDF (linked below), not from third-party blogs. But exam-to-exam sub-categories vary and specs change every cycle — always cross-check the exact numbers against your own notification before final submission.
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Width <span class="unit">(px)</span></label>
+            <input type="number" id="widthPx" value="413" min="10">
+          </div>
+          <div class="field">
+            <label>Height <span class="unit">(px)</span></label>
+            <input type="number" id="heightPx" value="531" min="10">
+          </div>
+        </div>
+
+        <div class="lock-row">
+          <input type="checkbox" id="lockAspect" checked>
+          <label for="lockAspect">Lock aspect ratio when editing size</label>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>DPI</label>
+            <input type="number" id="dpiInput" value="300" min="50">
+          </div>
+          <div class="field"></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Width <span class="unit">(cm)</span></label>
+            <input type="number" id="widthCm" value="3.5" step="0.1" min="0.1">
+          </div>
+          <div class="field">
+            <label>Height <span class="unit">(cm)</span></label>
+            <input type="number" id="heightCm" value="4.5" step="0.1" min="0.1">
+          </div>
+        </div>
+        <div class="hint" style="text-align:left; margin:-4px 0 16px;">
+          cm is just px ÷ DPI shown for print reference — it won't always match a notification's separately-stated cm figure (different aspect ratio), and it isn't checked below. Pixel size + file size (KB) are what almost every portal actually validates.
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Min size <span class="unit">(KB)</span></label>
+            <input type="number" id="minKb" value="20" min="1">
+          </div>
+          <div class="field">
+            <label>Max size <span class="unit">(KB)</span></label>
+            <input type="number" id="maxKb" value="50" min="1">
+          </div>
+        </div>
+
+        <div class="check-row" id="estRow" style="display:none;">
+          <span class="lbl">Estimated output size</span>
+          <span class="val"><span id="estVal">—</span><span class="dot" id="estDot"></span></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>04 · Compliance</h2>
+        <div class="check-row">
+          <span class="lbl">Pixel dimensions</span>
+          <span class="val"><span id="chkDimVal">—</span><span class="dot" id="chkDimDot"></span></span>
+        </div>
+        <div class="check-row">
+          <span class="lbl">DPI tag embedded</span>
+          <span class="val"><span id="chkDpiVal">—</span><span class="dot" id="chkDpiDot"></span></span>
+        </div>
+        <div class="check-row">
+          <span class="lbl">File size in range</span>
+          <span class="val"><span id="chkKbVal">—</span><span class="dot" id="chkKbDot"></span></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <button class="btn" id="generateBtn" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M12 16l-4-4M12 16l4-4"/><path d="M4 18v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          Generate &amp; Download
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <strong>Nothing leaves your device.</strong> The photo is resized and compressed entirely in your browser using the Canvas API — no server, no upload, no storage.<br>
+    Physical size (cm) is derived from pixels ÷ DPI — it only matters for how the image would print, not for the file itself.
+    <br><br>
+    <strong>Preset sources</strong> — pulled directly from official notification PDFs, not resizer blogs:
+    IBPS &amp; SBI bank exams via <a class="dl-link" href="https://ibps.in" target="_blank" rel="noopener">ibps.in</a> recruitment notifications ·
+    SSC exams via <a class="dl-link" href="https://ssc.nic.in" target="_blank" rel="noopener">ssc.nic.in</a> ·
+    UPSC via <a class="dl-link" href="https://upsconline.nic.in/ngrp/assets/PDF/instruction-photo-signature-upload-upsc.pdf" target="_blank" rel="noopener">upsconline.nic.in</a> instructions PDF.
+    Specs change every notification cycle — treat presets as a fast starting point, not a substitute for reading your own notification.
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const dropzone = $('dropzone'), fileInput = $('fileInput');
+  const previewPanel = $('previewPanel'), frameBox = $('frameBox'), canvas = $('previewCanvas');
+  const ctx = canvas.getContext('2d');
+  const stamp = $('stamp');
+  const widthPx = $('widthPx'), heightPx = $('heightPx'), dpiInput = $('dpiInput');
+  const widthCm = $('widthCm'), heightCm = $('heightCm');
+  const minKb = $('minKb'), maxKb = $('maxKb');
+  const lockAspect = $('lockAspect'), presetSelect = $('presetSelect');
+  const zoomSlider = $('zoomSlider');
+  const generateBtn = $('generateBtn');
+  const estRow = $('estRow'), estVal = $('estVal');
+
+  let img = null;           // loaded HTMLImageElement
+  let zoom = 1;              // 1..3
+  let offX = 0, offY = 0;    // pan, as fraction of frame width/height
+  let dragging = false, lastX = 0, lastY = 0;
+  let dirty = true;          // needs regenerate
+
+  const PRESETS = {
+    ibps_photo: { w:200, h:230, dpi:200, cmW:3.5, cmH:4.5, minKb:20, maxKb:50,
+      note: "Pixel size is mandated directly by IBPS.",
+      source: "ibps.in recruitment notification (Guidelines for scanning &amp; upload of documents)" },
+    ibps_sign: { w:140, h:60, dpi:200, cmW:4.0, cmH:2.0, minKb:10, maxKb:20,
+      note: "Not in capital letters — cursive/running handwriting only.",
+      source: "ibps.in recruitment notification" },
+    ibps_thumb:{ w:240, h:240, dpi:200, cmW:3.0, cmH:3.0, minKb:20, maxKb:50,
+      note: "Left thumb, black or blue ink on plain white paper.",
+      source: "ibps.in recruitment notification" },
+    ibps_decl: { w:800, h:400, dpi:200, cmW:10.0, cmH:5.0, minKb:50, maxKb:100,
+      note: "Handwritten declaration text, English only, not in capitals.",
+      source: "ibps.in recruitment notification" },
+    ssc_photo: { w:413, h:531, dpi:300, cmW:3.5, cmH:4.5, minKb:20, maxKb:50,
+      note: "SSC's notification fixes only the 3.5×4.5cm size and 20–50KB — exact pixel count isn't mandated, so any DPI works. 300 DPI is used here as a sensible default.",
+      source: "ssc.nic.in official notification PDF" },
+    ssc_sign: { w:472, h:236, dpi:300, cmW:4.0, cmH:2.0, minKb:10, maxKb:20,
+      note: "cm size varies by which SSC exam: most notifications say 4×2cm, some say 4×3cm or 6×2cm. Check your specific notification before finalizing.",
+      source: "ssc.nic.in official notification PDF" },
+    upsc_photo:{ w:350, h:450, dpi:300, cmW:2.96, cmH:3.81, minKb:20, maxKb:200,
+      note: "UPSC's official instructions specify no pixel or cm size at all — only 20–200KB, JPG, and that the face must fill 75% of the frame. Pixel size shown here is just a reasonable starting point.",
+      source: "upsconline.nic.in — Instructions for uploading the Photo & Signature (PDF)" },
+    upsc_sign: { w:450, h:400, dpi:300, cmW:3.81, cmH:3.39, minKb:20, maxKb:100,
+      note: "This is the scan containing all three stacked signatures, not a single signature. Official spec: both width and height between 350–500px, 20–100KB.",
+      source: "upsconline.nic.in — Instructions for uploading the Photo & Signature (PDF)" },
+  };
+
+  // ---------- unit sync ----------
+  function pxFromCm(cm, dpi){ return Math.round((cm/2.54)*dpi); }
+  function cmFromPx(px, dpi){ return +((px/dpi)*2.54).toFixed(2); }
+
+  function syncCmFromPx(){
+    const dpi = +dpiInput.value || 200;
+    widthCm.value = cmFromPx(+widthPx.value||1, dpi);
+    heightCm.value = cmFromPx(+heightPx.value||1, dpi);
+  }
+  function syncPxFromCm(){
+    const dpi = +dpiInput.value || 200;
+    widthPx.value = pxFromCm(+widthCm.value||1, dpi);
+    heightPx.value = pxFromCm(+heightCm.value||1, dpi);
+  }
+  function syncPxFromDpiKeepCm(){
+    const dpi = +dpiInput.value || 200;
+    widthPx.value = pxFromCm(+widthCm.value||1, dpi);
+    heightPx.value = pxFromCm(+heightCm.value||1, dpi);
+  }
+
+  let targetAspect = (+widthPx.value)/(+heightPx.value);
+
+  widthPx.addEventListener('input', () => {
+    if(lockAspect.checked){ heightPx.value = Math.round(+widthPx.value / targetAspect); }
+    else{ targetAspect = (+widthPx.value)/(+heightPx.value||1); }
+    syncCmFromPx(); markDirty(); updateTitleblock(); drawPreview(); updateChecklist(); debouncedEstimate();
+  });
+  heightPx.addEventListener('input', () => {
+    if(lockAspect.checked){ widthPx.value = Math.round(+heightPx.value * targetAspect); }
+    else{ targetAspect = (+widthPx.value)/(+heightPx.value||1); }
+    syncCmFromPx(); markDirty(); updateTitleblock(); drawPreview(); updateChecklist(); debouncedEstimate();
+  });
+  widthCm.addEventListener('input', () => {
+    if(lockAspect.checked){ heightCm.value = (+widthCm.value / targetAspect).toFixed(2); }
+    syncPxFromCm(); targetAspect = (+widthPx.value)/(+heightPx.value||1);
+    markDirty(); updateTitleblock(); drawPreview(); updateChecklist(); debouncedEstimate();
+  });
+  heightCm.addEventListener('input', () => {
+    if(lockAspect.checked){ widthCm.value = (+heightCm.value * targetAspect).toFixed(2); }
+    syncPxFromCm(); targetAspect = (+widthPx.value)/(+heightPx.value||1);
+    markDirty(); updateTitleblock(); drawPreview(); updateChecklist(); debouncedEstimate();
+  });
+  dpiInput.addEventListener('input', () => {
+    syncPxFromDpiKeepCm(); targetAspect = (+widthPx.value)/(+heightPx.value||1);
+    markDirty(); updateTitleblock(); drawPreview(); updateChecklist(); debouncedEstimate();
+  });
+  [minKb,maxKb].forEach(el => el.addEventListener('input', () => { markDirty(); updateTitleblock(); updateChecklist(); debouncedEstimate(); }));
+
+  function applyPreset(key){
+    const p = PRESETS[key];
+    const note = $('presetNote');
+    if(!p){ note.style.display='none'; return; }
+    widthPx.value = p.w; heightPx.value = p.h; dpiInput.value = p.dpi;
+    widthCm.value = p.cmW; heightCm.value = p.cmH;
+    minKb.value = p.minKb; maxKb.value = p.maxKb;
+    targetAspect = p.w/p.h;
+    note.style.display = 'block';
+    note.innerHTML = `${p.note}<br><span style="opacity:.7">Source: ${p.source}</span>`;
+    markDirty(); updateTitleblock(); if(img){ resizeFrameBox(); drawPreview(); } updateChecklist(); debouncedEstimate();
+  }
+  presetSelect.addEventListener('change', () => applyPreset(presetSelect.value));
+
+  function updateTitleblock(){
+    $('tbSize').textContent = `${widthPx.value}×${heightPx.value}px`;
+    $('tbDpi').textContent = `${dpiInput.value}`;
+    $('tbCm').textContent = `${widthCm.value}×${heightCm.value}cm`;
+    $('tbKb').textContent = `${minKb.value}–${maxKb.value}KB`;
+    $('dimTopLabel').textContent = `${widthPx.value}px / ${widthCm.value}cm`;
+    $('dimLeftLabel').textContent = `${heightPx.value}px / ${heightCm.value}cm`;
+  }
+
+  // ---------- upload ----------
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(file){
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      img = im;
+      zoom = 1; offX = 0; offY = 0;
+      previewPanel.style.display = 'block';
+      generateBtn.disabled = false;
+      markDirty();
+      resizeFrameBox();
+      drawPreview();
+      updateChecklist();
+      debouncedEstimate();
+    };
+    im.src = url;
+  }
+
+  // ---------- frame sizing ----------
+  function resizeFrameBox(){
+    const ar = (+widthPx.value)/(+heightPx.value||1);
+    const maxW = Math.min(frameBox.parentElement.clientWidth - 68, 360);
+    let w = maxW, h = w/ar;
+    if(h > 440){ h = 440; w = h*ar; }
+    frameBox.style.width = w+'px';
+    frameBox.style.height = h+'px';
+    canvas.width = w; canvas.height = h;
+  }
+  window.addEventListener('resize', () => { if(img){ resizeFrameBox(); drawPreview(); } });
+
+  // ---------- drag / zoom ----------
+  zoomSlider.addEventListener('input', () => {
+    zoom = (+zoomSlider.value)/100;
+    clampOffset();
+    markDirty(); drawPreview(); debouncedEstimate();
+  });
+
+  function frameCoverScale(){
+    const fw = canvas.width, fh = canvas.height;
+    return Math.max(fw/img.naturalWidth, fh/img.naturalHeight);
+  }
+  function clampOffset(){
+    const fw = canvas.width, fh = canvas.height;
+    const scale = frameCoverScale()*zoom;
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    const maxOffX = Math.max(0, (dw-fw)/2)/fw;
+    const maxOffY = Math.max(0, (dh-fh)/2)/fh;
+    offX = Math.max(-maxOffX, Math.min(maxOffX, offX));
+    offY = Math.max(-maxOffY, Math.min(maxOffY, offY));
+  }
+
+  function ptr(e){ return e.touches ? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY}; }
+  function dragStart(e){ if(!img) return; dragging=true; const p=ptr(e); lastX=p.x; lastY=p.y; }
+  function dragMove(e){
+    if(!dragging || !img) return;
+    e.preventDefault();
+    const p = ptr(e);
+    const dx = p.x-lastX, dy = p.y-lastY;
+    lastX=p.x; lastY=p.y;
+    offX += dx/canvas.width; offY += dy/canvas.height;
+    clampOffset();
+    drawPreview();
+    markDirty();
+    debouncedEstimate();
+  }
+  function dragEnd(){ dragging=false; }
+  frameBox.addEventListener('mousedown', dragStart);
+  window.addEventListener('mousemove', dragMove);
+  window.addEventListener('mouseup', dragEnd);
+  frameBox.addEventListener('touchstart', dragStart, {passive:true});
+  frameBox.addEventListener('touchmove', dragMove, {passive:false});
+  frameBox.addEventListener('touchend', dragEnd);
+
+  // ---------- render (shared by preview + export) ----------
+  function renderTo(targetCtx, cw, ch){
+    const scale = Math.max(cw/img.naturalWidth, ch/img.naturalHeight)*zoom;
+    const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
+    const x = (cw-dw)/2 + offX*cw;
+    const y = (ch-dh)/2 + offY*ch;
+    targetCtx.fillStyle = '#fff';
+    targetCtx.fillRect(0,0,cw,ch);
+    targetCtx.drawImage(img, x, y, dw, dh);
+  }
+
+  function drawPreview(){
+    if(!img) return;
+    renderTo(ctx, canvas.width, canvas.height);
+  }
+
+  // ---------- DPI patch (JFIF APP0 header) ----------
+  function patchJpegDpi(arrayBuffer, dpi){
+    const bytes = new Uint8Array(arrayBuffer);
+    if(bytes[2]===0xFF && bytes[3]===0xE0 &&
+       bytes[6]===0x4A && bytes[7]===0x46 && bytes[8]===0x49 && bytes[9]===0x46 && bytes[10]===0x00){
+      bytes[13] = 1; // units = dots per inch
+      bytes[14] = (dpi>>8)&0xFF; bytes[15] = dpi&0xFF;
+      bytes[16] = (dpi>>8)&0xFF; bytes[17] = dpi&0xFF;
+      return { bytes, patched:true };
+    }
+    return { bytes, patched:false };
+  }
+
+  function canvasToBlob(cnv, quality){
+    return new Promise(res => cnv.toBlob(b => res(b), 'image/jpeg', quality));
+  }
+
+  async function findBestBlob(cnv, min, max){
+    const qualities = [0.95,0.9,0.85,0.8,0.75,0.7,0.65,0.6,0.5,0.4,0.3,0.2,0.12,0.08];
+    let best = null, closestBelowMax = null;
+    for(const q of qualities){
+      const blob = await canvasToBlob(cnv, q);
+      const kb = blob.size/1024;
+      if(kb <= max && (closestBelowMax===null || kb > closestBelowMax.kb)) closestBelowMax = {blob, kb, q};
+      if(kb >= min && kb <= max){ best = {blob, kb, q}; break; }
+    }
+    if(best) return best;
+    if(closestBelowMax) return closestBelowMax;
+    const blob = await canvasToBlob(cnv, 0.08);
+    return {blob, kb: blob.size/1024, q:0.08};
+  }
+
+  async function exportImage(){
+    const w = +widthPx.value, h = +heightPx.value, dpi = +dpiInput.value;
+    const min = +minKb.value, max = +maxKb.value;
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = w; exportCanvas.height = h;
+    const ectx = exportCanvas.getContext('2d');
+    renderTo(ectx, w, h);
+
+    const result = await findBestBlob(exportCanvas, min, max);
+
+    const buf = await result.blob.arrayBuffer();
+    const {bytes, patched} = patchJpegDpi(buf, dpi);
+    const finalBlob = new Blob([bytes], {type:'image/jpeg'});
+    const finalKb = finalBlob.size/1024;
+
+    return { blob: finalBlob, kb: finalKb, w, h, dpi, patched, inRange: finalKb>=min && finalKb<=max };
+  }
+
+  // ---------- live estimated-size preview ----------
+  function debounce(fn, ms){
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+
+  let estimateToken = 0;
+  async function updateEstimate(){
+    if(!img){ estRow.style.display = 'none'; return; }
+    const w = +widthPx.value, h = +heightPx.value;
+    const min = +minKb.value, max = +maxKb.value;
+    if(!(w > 0) || !(h > 0) || !(min > 0) || !(max > 0)){ estRow.style.display = 'none'; return; }
+
+    const token = ++estimateToken;
+    estRow.style.display = 'flex';
+    estVal.textContent = 'calculating…';
+    setDot('estDot', '');
+
+    const cnv = document.createElement('canvas');
+    cnv.width = w; cnv.height = h;
+    renderTo(cnv.getContext('2d'), w, h);
+    const result = await findBestBlob(cnv, min, max);
+    if(token !== estimateToken) return; // a newer estimate superseded this one
+
+    const inRange = result.kb >= min && result.kb <= max;
+    estVal.textContent = `~${result.kb.toFixed(1)}KB`;
+    setDot('estDot', inRange ? 'ok' : 'bad');
+  }
+  const debouncedEstimate = debounce(updateEstimate, 350);
+
+  // ---------- checklist ----------
+  function markDirty(){
+    dirty = true;
+    stamp.classList.remove('show','bad');
+    setDot('chkKbDot','');
+    $('chkKbVal').textContent = 'not generated yet';
+  }
+  function setDot(id, state){
+    const d = $(id);
+    d.classList.remove('ok','bad');
+    if(state==='ok') d.classList.add('ok');
+    if(state==='bad') d.classList.add('bad');
+  }
+  function updateChecklist(){
+    $('chkDimVal').textContent = `${widthPx.value}×${heightPx.value}px`;
+    setDot('chkDimDot','ok');
+    $('chkDpiVal').textContent = `${dpiInput.value} dpi`;
+    setDot('chkDpiDot', img ? null : null);
+  }
+
+  generateBtn.addEventListener('click', async () => {
+    if(!img) return;
+    generateBtn.disabled = true;
+    generateBtn.textContent = 'Generating…';
+    try{
+      const r = await exportImage();
+      $('chkDimVal').textContent = `${r.w}×${r.h}px`;
+      setDot('chkDimDot','ok');
+      $('chkDpiVal').textContent = r.patched ? `${r.dpi} dpi (embedded)` : `${r.dpi} dpi (not embedded)`;
+      setDot('chkDpiDot', r.patched ? 'ok' : 'bad');
+      $('chkKbVal').textContent = `${r.kb.toFixed(1)}KB`;
+      setDot('chkKbDot', r.inRange ? 'ok' : 'bad');
+
+      stamp.textContent = r.inRange ? 'IN SPEC' : 'CHECK SIZE';
+      stamp.classList.remove('bad');
+      if(!r.inRange) stamp.classList.add('bad');
+      stamp.classList.add('show');
+
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(r.blob);
+      a.download = `photo_${r.w}x${r.h}_${Math.round(r.kb)}kb.jpg`;
+      document.body.appendChild(a); a.click(); a.remove();
+
+      dirty = false;
+    } finally {
+      generateBtn.disabled = false;
+      generateBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12M12 16l-4-4M12 16l4-4"/><path d="M4 18v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Generate &amp; Download';
+    }
+  });
+
+  // init
+  updateTitleblock();
+  updateChecklist();
+  applyPreset(presetSelect.value);
+})();
+</script>
+</body>
+</html>
