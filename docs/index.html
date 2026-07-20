@@ -333,11 +333,15 @@
             <div class="stamp" id="stamp">PENDING</div>
           </div>
         </div>
-        <div class="zoom-row">
+        <div class="lock-row" style="margin-top:14px;">
+          <input type="checkbox" id="fitMode">
+          <label for="fitMode">Fit without cropping (pads with white instead)</label>
+        </div>
+        <div class="zoom-row" id="zoomRow">
           <label>ZOOM</label>
           <input type="range" id="zoomSlider" min="100" max="300" value="100">
         </div>
-        <div class="hint">Drag the photo inside the frame to reposition it</div>
+        <div class="hint" id="frameHint">Drag the photo inside the frame to reposition it</div>
       </div>
     </div>
 
@@ -484,7 +488,8 @@
   const widthCm = $('widthCm'), heightCm = $('heightCm');
   const minKb = $('minKb'), maxKb = $('maxKb');
   const lockAspect = $('lockAspect'), presetSelect = $('presetSelect');
-  const zoomSlider = $('zoomSlider');
+  const zoomSlider = $('zoomSlider'), zoomRow = $('zoomRow'), frameHint = $('frameHint');
+  const fitModeCheckbox = $('fitMode');
   const generateBtn = $('generateBtn');
   const estRow = $('estRow'), estVal = $('estVal');
 
@@ -493,6 +498,7 @@
   let offX = 0, offY = 0;    // pan, as fraction of frame width/height
   let dragging = false, lastX = 0, lastY = 0;
   let dirty = true;          // needs regenerate
+  let noCrop = false;        // fit whole image inside frame, padding with white instead of cropping
 
   const PRESETS = {
     ibps_photo: { w:200, h:230, dpi:200, cmW:3.5, cmH:4.5, minKb:20, maxKb:50,
@@ -631,20 +637,37 @@
   }
   window.addEventListener('resize', () => { if(img){ resizeFrameBox(); drawPreview(); } });
 
-  // ---------- drag / zoom ----------
+  // ---------- drag / zoom / fit mode ----------
   zoomSlider.addEventListener('input', () => {
     zoom = (+zoomSlider.value)/100;
     clampOffset();
     markDirty(); drawPreview(); debouncedEstimate();
   });
 
-  function frameCoverScale(){
+  fitModeCheckbox.addEventListener('change', () => {
+    noCrop = fitModeCheckbox.checked;
+    zoom = 1; offX = 0; offY = 0;
+    zoomSlider.value = 100;
+    zoomSlider.disabled = noCrop;
+    zoomRow.style.opacity = noCrop ? '0.4' : '1';
+    frameHint.textContent = noCrop
+      ? 'Whole image fits inside the frame — no dragging or zooming needed'
+      : 'Drag the photo inside the frame to reposition it';
+    markDirty();
+    if(img){ drawPreview(); }
+    updateChecklist(); debouncedEstimate();
+  });
+
+  function frameFitScale(){
     const fw = canvas.width, fh = canvas.height;
-    return Math.max(fw/img.naturalWidth, fh/img.naturalHeight);
+    return noCrop
+      ? Math.min(fw/img.naturalWidth, fh/img.naturalHeight)
+      : Math.max(fw/img.naturalWidth, fh/img.naturalHeight);
   }
   function clampOffset(){
+    if(noCrop){ offX = 0; offY = 0; return; }
     const fw = canvas.width, fh = canvas.height;
-    const scale = frameCoverScale()*zoom;
+    const scale = frameFitScale()*zoom;
     const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
     const maxOffX = Math.max(0, (dw-fw)/2)/fw;
     const maxOffY = Math.max(0, (dh-fh)/2)/fh;
@@ -653,9 +676,9 @@
   }
 
   function ptr(e){ return e.touches ? {x:e.touches[0].clientX,y:e.touches[0].clientY} : {x:e.clientX,y:e.clientY}; }
-  function dragStart(e){ if(!img) return; dragging=true; const p=ptr(e); lastX=p.x; lastY=p.y; }
+  function dragStart(e){ if(!img || noCrop) return; dragging=true; const p=ptr(e); lastX=p.x; lastY=p.y; }
   function dragMove(e){
-    if(!dragging || !img) return;
+    if(!dragging || !img || noCrop) return;
     e.preventDefault();
     const p = ptr(e);
     const dx = p.x-lastX, dy = p.y-lastY;
@@ -676,7 +699,9 @@
 
   // ---------- render (shared by preview + export) ----------
   function renderTo(targetCtx, cw, ch){
-    const scale = Math.max(cw/img.naturalWidth, ch/img.naturalHeight)*zoom;
+    const scale = (noCrop
+      ? Math.min(cw/img.naturalWidth, ch/img.naturalHeight)
+      : Math.max(cw/img.naturalWidth, ch/img.naturalHeight)) * zoom;
     const dw = img.naturalWidth*scale, dh = img.naturalHeight*scale;
     const x = (cw-dw)/2 + offX*cw;
     const y = (ch-dh)/2 + offY*ch;
